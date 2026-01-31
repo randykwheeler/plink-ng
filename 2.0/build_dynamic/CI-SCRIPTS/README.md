@@ -1,291 +1,544 @@
 # PLINK2 GLM Testing Framework
 
-This directory contains the continuous integration (CI) testing framework for validating PLINK2 GLM (Generalized Linear Model) implementations against R reference outputs.
+Continuous integration framework for validating PLINK2 GLM implementations against R reference outputs.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
+- [Test Data](#test-data)
+  - [Generation (PLINK2SYN)](#generation-plink2syn)
+  - [Caching Workflow](#caching-workflow)
+  - [Expected Files](#expected-files)
+- [CI/CD Pipeline](#cicd-pipeline)
+  - [Automated Testing](#automated-testing)
+  - [Test Coverage](#test-coverage)
+- [Configuration](#configuration)
+  - [Batch System](#batch-system)
+  - [Parameter Format](#parameter-format)
+  - [Test Conditions](#test-conditions)
+  - [Config File](#config-file)
+- [Scripts Reference](#scripts-reference)
+- [Directory Structure](#directory-structure)
+- [Troubleshooting](#troubleshooting)
+- [Archive](#archive)
 
 ## Overview
 
-The testing framework runs PLINK2 GLM analyses on various datasets and compares the results with pre-computed R reference values to ensure statistical accuracy. Tests are organized into 12 batches for parallel execution in CI environments.
+**Purpose:** Ensure PLINK2 GLM statistical accuracy by comparing results with ground-truth R outputs on synthetic datasets.
 
-**Total Tests:** 108 test configurations across 12 batches (9 tests per batch)
+**Test Coverage:** 108 test configurations across 12 batches (9 tests each)
 
-**CI Automation:** Runs weekly via [.github/workflows/auto_checkcommits_tests_linuxmac.yml](/.github/workflows/auto_checkcommits_tests_linuxmac.yml) on both Linux and macOS, cycling through one batch per week.
+**CI Schedule:** Weekly via [.github/workflows/auto_checkcommits_tests_linuxmac.yml](/.github/workflows/auto_checkcommits_tests_linuxmac.yml) on Linux/macOS
+
+**Complete Cycle:** ~12 weeks to run all batches
+
+**Validation Criteria:** All correlations (beta, SE, p-values) must be ≥0.8 threshold
 
 ## Quick Start
 
-### Run All Tests (Batch 1)
 ```bash
-# From repository root
+# Run default batch (Batch 1)
 ./2.0/build_dynamic/CI-SCRIPTS/GLM_TESTS.sh
-```
 
-### Run Specific Batch
-```bash
-# Set batch number (1-12) and run
-export GLM_BATCH_NUM=5
-./2.0/build_dynamic/CI-SCRIPTS/GLM_TESTS.sh
-```
-
-### Local Testing
-```bash
-# Run with custom configuration
-./2.0/build_dynamic/CI-SCRIPTS/LOCAL_PLINK2_GLM_TESTING.sh
-```
-
-## Main Scripts
-
-### Entry Points
-
-- **GLM_TESTS.sh**
-  Main CI entry point. Sets up Python environment, creates results directory, and executes LOCAL_PLINK2_GLM_TESTING.sh.
-
-- **LOCAL_PLINK2_GLM_TESTING.sh**
-  Core test execution engine. Loads configuration, runs PLINK2 GLM for each test case, and validates results against R reference outputs.
-
-### Configuration
-
-- **PLINK2_GLM_TEST_CONFIG.sh**
-  Central configuration file that defines:
-  - Data paths (`datapath`, `outdir`)
-  - Batch selection (`BATCH_NUM`)
-  - Correlation threshold for pass/fail (`correlation_threshold`)
-  - Loads test parameters from batch files
-
-### Analysis & Validation
-
-- **COMPARE_GLM_PLINK2_R.py**
-  Python script that compares PLINK2 output with R reference results. Calculates correlations for betas, standard errors, and p-values.
-
-- **checkglm.py**
-  Utility for checking GLM output files.
-
-- **glm_test_batches.py**
-  Script for generating batch configuration files from master test list.
-
-### Utilities
-
-- **CLEANUP.sh**
-  Removes test data, results, and cleans build artifacts.
-
-- **DYNAMICBUILD_LINUXMAC_ROOT.sh**
-  Build script for Linux/Mac dynamic builds.
-
-## Test Configuration
-
-### Batch System
-
-Tests are divided into 12 batches stored in `CI_reference_files/`:
-- `BATCH_01_PARAMS.txt` through `BATCH_12_PARAMS.txt`
-- `ALL_BATCHES_MASTER_LIST.txt` - Complete list of all 108 tests
-
-Each batch file contains ~9 test configurations.
-
-### Parameter Format
-
-Test parameters are CSV format:
-```
-dataset_name,model,n,covariate,threads
-```
-
-**Fields:**
-- `dataset_name` - Dataset file prefix (e.g., `1kgp3_50k_nomiss_Av_nonintdose`)
-- `model` - GLM model type: `linear`, `logistic`, or `firth`
-- `n` - Sample subset size (1000, 32000, or 32017)
-- `covariate` - Covariate name (e.g., `COV_1`) or blank for none
-- `threads` - Number of threads for PLINK2 (1, 4, or 8)
-
-**Example:**
-```
-1kgp3_50k_yesmiss_Av_nonintdose,linear,1000,COV_1,1
-1kgp3_50k_nomiss_Av_nonintdose,logistic,32000,,4
-```
-
-### Test Conditions
-
-**Datasets:**
-- `1kgp3_50k_nomiss_Av_nonintdose` - No missing genotypes
-- `1kgp3_50k_yesmiss_Av_nonintdose` - With missing genotypes
-
-**Models:**
-- `linear` - Uses phenotype `y`
-- `logistic` - Uses phenotype `ybool`, no Firth correction
-- `firth` - Uses phenotype `ybool`, hybrid Firth regression
-
-**Sample Sizes:**
-- 1000 - Small subset
-- 32000 - Large subset (64 × 500)
-- 32017 - Large non-64-multiple subset (64 × 500 + 17)
-
-**Threading:**
-- Single thread (--threads 1)
-- Multi-threaded (--threads 4 or 8)
-
-## Directory Structure
-
-```
-CI-SCRIPTS/
-├── README.md                          # This file
-├── GLM_TESTS.sh                       # Main CI entry point
-├── LOCAL_PLINK2_GLM_TESTING.sh        # Core test runner
-├── PLINK2_GLM_TEST_CONFIG.sh          # Configuration
-├── COMPARE_GLM_PLINK2_R.py            # PLINK2 vs R comparison
-├── glm_test_batches.py                # Batch file generator
-├── checkglm.py                        # GLM output checker
-├── CLEANUP.sh                         # Cleanup utility
-├── DYNAMICBUILD_LINUXMAC_ROOT.sh      # Build script
-├── CI_reference_files/                # Batch configurations
-│   ├── BATCH_01_PARAMS.txt
-│   ├── BATCH_02_PARAMS.txt
-│   ├── ...
-│   ├── BATCH_12_PARAMS.txt
-│   └── ALL_BATCHES_MASTER_LIST.txt
-├── results/                           # Test outputs (gitignored)
-└── archive/                           # Deprecated scripts
-    ├── GLM_TESTS_old.sh
-    ├── GLM_TESTS_old2.sh
-    ├── local_plink2_glm_testruns_old.sh
-    └── ...
-```
-
-## Test Data Management
-
-### Test Data Generation
-
-Test data was generated and archived using [PLINK2SYN](https://github.com/physioforecast/PLINK2SYN), a genomics research pipeline for creating synthetic genotype-phenotype datasets.
-
-**PLINK2SYN Pipeline:**
-- **Purpose:** Generates synthetic GWAS datasets with known ground truth for validating PLINK2 statistical methods
-- **Source Data:** 1000 Genomes Project Phase 3 (~50,000 biallelic SNPs)
-- **Synthetic Samples:** ~32,000 augmented samples created by adding controlled Gaussian noise to real genotypes
-- **Phenotypes:** Both quantitative and binary phenotypes with configurable heritability (~500 causal variants)
-- **Reference Outputs:** Ground truth R GLM results for validation
-- **Scenarios:** Datasets with and without missing genotypes for comprehensive testing
-
-This pipeline ensures PLINK2 GLM implementations can be validated against known statistical outcomes from R, providing confidence in the accuracy of GWAS results.
-
-### CI Test Data Caching
-
-Test data is managed via [.github/workflows/cache_test_data.yml](/.github/workflows/cache_test_data.yml):
-
-**How It Works:**
-1. **Storage:** Test data hosted on Google Drive (File ID: `1lW5s8kwMeOwHPrbRoREtO5pwgKKK_8FR`)
-2. **Cache Key:** `test-data-v1` - shared across all workflow runs
-3. **Manual Trigger:** Run via workflow_dispatch in GitHub Actions UI
-4. **Process:**
-   - Downloads test_data.zip from Google Drive using `gdown`
-   - Extracts to `test_data/` directory
-   - Caches with GitHub Actions cache
-   - Subsequent workflow runs restore from cache (no re-download)
-
-**When to Run:**
-- First-time setup of CI test data cache
-- After updating test datasets (increment cache key to `test-data-v2`, etc.)
-- If cache becomes corrupted or invalidated
-
-**Updating Test Data:**
-To regenerate test data with new parameters or scenarios, use the [PLINK2SYN](https://github.com/physioforecast/PLINK2SYN) pipeline and update the Google Drive archive.
-
-### Expected Input Files
-
-Tests expect data files in `test_data/` directory:
-
-**For each dataset:**
-- `{dataset}_recode_varIDs.pgen` - PLINK2 genotype file
-- `{dataset}_recode_varIDs.pvar` - Variant information
-- `{dataset}_recode_varIDs.psam` - Sample information
-- `{dataset}_combined_phenocov.csv` - Phenotypes and covariates
-- `{dataset}_recode_varIDs_subset_{n}.keep` - Sample subset files
-
-**R Reference Files:**
-- `{dataset}_{phenotype}_{covariate}_glm_{model}_keep{n}_{model}.csv`
-
-**Local Testing:**
-For local development, obtain test data separately or extract from cached source.
-
-## Validation Criteria
-
-Tests pass when all correlations between PLINK2 and R outputs meet the threshold:
-- Beta coefficients correlation ≥ 0.8
-- Standard error correlation ≥ 0.8
-- P-value correlation ≥ 0.8
-
-Threshold configurable via `correlation_threshold` in PLINK2_GLM_TEST_CONFIG.sh
-
-## CI Integration
-
-### GitHub Actions Workflow
-
-Tests are automated via [.github/workflows/auto_checkcommits_tests_linuxmac.yml](/.github/workflows/auto_checkcommits_tests_linuxmac.yml)
-
-**Trigger Schedule:**
-- **Automatic:** Every Sunday at midnight (UTC)
-- **Manual:** Via workflow_dispatch in GitHub Actions UI
-
-**How It Works:**
-
-1. **Commit Check:** Compares latest master commit with last successful workflow run
-2. **Conditional Execution:** Only runs if new commits detected
-3. **Matrix Strategy:** Tests run on both `ubuntu-latest` and `macos-latest`
-4. **Batch Rotation:** Automatically cycles through batches 1-12 on each run
-   - Uses cached `.batch_counter` file to track progress
-   - Each workflow run tests the next batch in sequence
-   - After batch 12, wraps back to batch 1
-5. **Test Data:** Restores from GitHub Actions cache (populated by [cache_test_data.yml](/.github/workflows/cache_test_data.yml))
-6. **Workflow Steps:**
-   - Install system dependencies (LAPACK, OpenBLAS, etc.)
-   - Restore cached test data (key: `test-data-v1`)
-   - Build PLINK2 via DYNAMICBUILD_LINUXMAC_ROOT.sh
-   - Run GLM tests for current batch via GLM_TESTS.sh
-   - Cleanup via CLEANUP.sh
-
-**Complete Test Coverage:**
-- All 108 tests (12 batches) run every ~12 weeks
-- Each Sunday runs 1 batch on both Linux and macOS
-- 2 platforms × 9 tests per batch = 18 test executions per week
-
-### Manual CI Testing
-
-To test specific batches locally:
-```bash
-# Run specific batch
+# Run specific batch (1-12)
 export GLM_BATCH_NUM=5
 ./2.0/build_dynamic/CI-SCRIPTS/GLM_TESTS.sh
 
-# Or test all batches sequentially
+# Run all batches sequentially
 for i in {1..12}; do
   export GLM_BATCH_NUM=$i
   ./2.0/build_dynamic/CI-SCRIPTS/GLM_TESTS.sh
 done
 ```
 
+**Prerequisites:**
+- Test data in `test_data/` directory (see [Test Data](#test-data))
+- Python 3.x with pandas and numpy (`pip install pandas numpy`)
+- System dependencies: LAPACK, OpenBLAS (Linux), zlib
+
+## How It Works
+
+```
+Test Data (PLINK2SYN) → Cache (Google Drive) → CI Workflow → PLINK2 GLM → Validate vs R → Pass/Fail
+```
+
+### Pipeline Steps
+
+1. **Test Generation:** Synthetic datasets created via [PLINK2SYN](https://github.com/physioforecast/PLINK2SYN) with known ground truth
+   - Based on 1000 Genomes Project Phase 3 data
+   - ~32k synthetic samples with controlled genetic effects
+   - Both quantitative and binary phenotypes
+   - R reference outputs computed for validation
+
+2. **Data Caching:** Test data stored in Google Drive, cached by [.github/workflows/cache_test_data.yml](/.github/workflows/cache_test_data.yml)
+   - Downloads once, reused across all workflow runs
+   - Cache key versioning for updates
+
+3. **CI Execution:** Weekly workflow builds PLINK2, runs GLM tests, validates against R reference outputs
+   - Checks for new commits before running
+   - Rotates through batches 1-12 sequentially
+   - Runs on both Linux and macOS
+
+4. **Validation:** Correlation check (≥0.8) for beta coefficients, standard errors, and p-values
+   - Compares PLINK2 output with R reference
+   - Fails fast if correlation below threshold
+   - Detailed output in `results/` directory
+
+## Test Data
+
+### Generation (PLINK2SYN)
+
+Test datasets generated via [PLINK2SYN](https://github.com/physioforecast/PLINK2SYN), a genomics research pipeline for creating synthetic genotype-phenotype datasets.
+
+**PLINK2SYN Pipeline:**
+- **Purpose:** Generates synthetic GWAS datasets with known ground truth for validating PLINK2 statistical methods
+- **Source Data:** 1000 Genomes Project Phase 3 (~50,000 biallelic SNPs)
+- **Synthetic Samples:** ~32,000 augmented samples created by adding controlled Gaussian noise (N(0, 0.1)) to real genotypes
+- **Phenotypes:**
+  - Quantitative (`y`) - continuous phenotype
+  - Binary (`ybool`) - case/control phenotype
+  - Configurable heritability with ~500 causal variants (selected at probability 0.01)
+- **Covariates:** Optional covariates (e.g., `COV_1`) for testing covariate adjustment
+- **Reference Outputs:** Ground truth R GLM results for validation against PLINK2
+- **Scenarios:**
+  - Datasets with missing genotypes (`yesmiss`)
+  - Datasets without missing genotypes (`nomiss`)
+  - Multiple sample sizes (1000, 32000, 32017)
+  - Single-threaded and multi-threaded execution
+
+This pipeline ensures PLINK2 GLM implementations can be validated against known statistical outcomes from R, providing confidence in the accuracy of GWAS results.
+
+### Caching Workflow
+
+Test data is managed via [.github/workflows/cache_test_data.yml](/.github/workflows/cache_test_data.yml):
+
+**Storage & Caching:**
+- **Storage:** Google Drive (File ID: `1lW5s8kwMeOwHPrbRoREtO5pwgKKK_8FR`)
+- **Cache Key:** `test-data-v1` - shared across all workflow runs
+- **Trigger:** Manual (workflow_dispatch) via GitHub Actions UI
+- **Process:**
+  1. Check if cache already exists (skip download if cached)
+  2. Download `test_data.zip` from Google Drive using `gdown`
+  3. Extract to `test_data/` directory
+  4. Save to GitHub Actions cache
+  5. Subsequent workflow runs restore from cache (no re-download)
+
+**When to Run:**
+- First-time setup of CI test data cache
+- After updating test datasets (increment cache key to `test-data-v2`, etc.)
+- If cache becomes corrupted or invalidated
+- When test data version needs to be synchronized across workflows
+
+**Updating Test Data:**
+1. Regenerate test data using [PLINK2SYN](https://github.com/physioforecast/PLINK2SYN) pipeline with desired parameters
+2. Create `test_data.zip` archive with all required files
+3. Upload to Google Drive and update file ID in workflow
+4. Increment cache key in both workflows (e.g., `test-data-v1` → `test-data-v2`)
+5. Run cache_test_data.yml workflow to populate new cache
+
+### Expected Files
+
+Located in `test_data/` directory:
+
+**Genotype Files (PLINK2 format):**
+- `{dataset}_recode_varIDs.pgen` - PLINK2 genotype file (binary)
+- `{dataset}_recode_varIDs.pvar` - Variant information (chromosome, position, alleles)
+- `{dataset}_recode_varIDs.psam` - Sample information (IDs)
+
+**Phenotype & Covariate Files:**
+- `{dataset}_combined_phenocov.csv` - Phenotypes (`y`, `ybool`) and covariates (`COV_1`, etc.)
+
+**Sample Subset Files:**
+- `{dataset}_recode_varIDs_subset_{n}.keep` - Sample IDs for subsets
+  - n=1000 (small subset)
+  - n=32000 (large subset, 64×500)
+  - n=32017 (non-64-multiple subset, 64×500+17)
+
+**R Reference Files (Ground Truth):**
+- `{dataset}_{phenotype}_{covariate}_glm_{model}_keep{n}_{model}.csv`
+- Contains beta coefficients, standard errors, p-values from R GLM
+- Used for correlation-based validation of PLINK2 results
+
+**Example Datasets:**
+- `1kgp3_50k_nomiss_Av_nonintdose` - Dataset without missing genotypes
+- `1kgp3_50k_yesmiss_Av_nonintdose` - Dataset with missing genotypes
+
+**Local Testing:**
+For local development, contact maintainer for test data access or download from Google Drive using the file ID.
+
+## CI/CD Pipeline
+
+### Automated Testing
+
+[.github/workflows/auto_checkcommits_tests_linuxmac.yml](/.github/workflows/auto_checkcommits_tests_linuxmac.yml)
+
+**Trigger Schedule:**
+- **Automatic:** Every Sunday at midnight (UTC) via cron schedule
+- **Manual:** Via workflow_dispatch in GitHub Actions UI
+
+**Execution Conditions:**
+- Only runs if new commits exist on master branch since last successful workflow run
+- Skips execution if no changes detected (saves CI resources)
+
+**Platform Matrix:**
+- `ubuntu-latest` - Tests on Linux
+- `macos-latest` - Tests on macOS
+- Both platforms run in parallel
+
+**Workflow Steps:**
+
+1. **Check Commits**
+   - Compare latest master commit with last successful workflow commit
+   - Output: `new_commits=true/false`
+   - Skip remaining steps if no new commits
+
+2. **Setup Environment**
+   - Checkout repository with full git history
+   - Install system dependencies:
+     - **Linux:** libopenblas-dev, liblapack-dev, liblapacke-dev, build-essential, zlib1g-dev, unzip, bc
+     - **macOS:** Uses native system libraries
+
+3. **Restore Batch Counter**
+   - Load cached `.batch_counter` file (tracks current batch number)
+   - Increment batch: `NEXT_BATCH = (CURRENT_BATCH % 12) + 1`
+   - Cycles through batches 1→2→...→12→1
+   - Set as environment variable `GLM_BATCH_NUM`
+
+4. **Restore Test Data**
+   - Restore from GitHub Actions cache (key: `test-data-v1`)
+   - Populated by [cache_test_data.yml](/.github/workflows/cache_test_data.yml) workflow
+   - No download needed if cache hit
+
+5. **Build PLINK2**
+   - Execute `DYNAMICBUILD_LINUXMAC_ROOT.sh`
+   - Compiles PLINK2 from source with system libraries
+   - Ensures latest code changes are tested
+
+6. **Run GLM Tests**
+   - Execute `GLM_TESTS.sh` with current batch number
+   - Sets up Python venv, installs dependencies
+   - Runs `LOCAL_PLINK2_GLM_TESTING.sh`
+   - Tests all configurations in current batch (~9 tests)
+   - Validates each result against R reference
+   - **Fails fast** if any correlation below threshold
+
+7. **Cleanup**
+   - Execute `CLEANUP.sh`
+   - Removes test data, results, build artifacts
+   - Saves disk space on CI runners
+
+8. **Save Batch Counter**
+   - Cache updated `.batch_counter` for next run
+   - Persists even if workflow fails (always saves)
+
+**Batch Rotation Logic:**
+- Uses GitHub Actions cache to persist batch counter between runs
+- Each workflow run increments the counter
+- Ensures all 108 tests run over ~12 weeks
+- Independent tracking per platform (Linux/macOS may differ slightly)
+
+### Test Coverage
+
+**Weekly Execution:**
+- 1 batch × 2 platforms = 18 test executions per week
+- ~9 tests per batch × 2 platforms = ~18 PLINK2 GLM runs
+- Validates beta coefficients, standard errors, p-values
+
+**Complete Coverage:**
+- All 108 tests covered every ~12 weeks
+- Both Linux and macOS platforms
+- Multiple scenarios: missing/complete data, covariates, sample sizes, threading
+
+**Validation Metrics:**
+- Beta coefficient correlation ≥ 0.8
+- Standard error correlation ≥ 0.8
+- P-value correlation ≥ 0.8
+- Configurable threshold in `PLINK2_GLM_TEST_CONFIG.sh`
+
+## Configuration
+
+### Batch System
+
+Tests are organized in `CI_reference_files/` directory:
+
+**Batch Files:**
+- `BATCH_01_PARAMS.txt` through `BATCH_12_PARAMS.txt` (9 tests each)
+- `ALL_BATCHES_MASTER_LIST.txt` (all 108 tests combined)
+
+**Batch Distribution:**
+- Tests divided evenly across 12 batches for parallel CI execution
+- Each batch takes approximately similar runtime
+- Batch selection via `BATCH_NUM` environment variable or config file
+
+**Generating Batches:**
+- Use `glm_test_batches.py` to regenerate batch files from master list
+- Useful when adding new test configurations
+- Ensures even distribution across batches
+
+### Parameter Format
+
+Test parameters stored in CSV format: `dataset_name,model,n,covariate,threads`
+
+| Field | Options | Description |
+|-------|---------|-------------|
+| `dataset_name` | `1kgp3_50k_{nomiss\|yesmiss}_Av_nonintdose` | Dataset with/without missing genotypes |
+| `model` | `linear`, `logistic`, `firth` | GLM model type (see below) |
+| `n` | `1000`, `32000`, `32017` | Sample subset size |
+| `covariate` | `COV_1` or blank | Covariate name (optional, blank for no covariates) |
+| `threads` | `1`, `4`, `8` | PLINK2 thread count for parallelization |
+
+**Model Types:**
+- `linear` - Linear regression (uses phenotype `y`, continuous)
+- `logistic` - Logistic regression (uses phenotype `ybool`, binary, no Firth correction)
+- `firth` - Firth logistic regression (uses phenotype `ybool`, hybrid Firth correction)
+
+**Example Configurations:**
+```
+1kgp3_50k_yesmiss_Av_nonintdose,linear,1000,COV_1,1
+1kgp3_50k_nomiss_Av_nonintdose,logistic,32000,,4
+1kgp3_50k_yesmiss_Av_nonintdose,firth,32017,COV_1,8
+```
+
+### Test Conditions
+
+**Datasets:**
+- `1kgp3_50k_nomiss_Av_nonintdose` - No missing genotypes (complete data)
+- `1kgp3_50k_yesmiss_Av_nonintdose` - With missing genotypes (tests genotype QC)
+
+**Sample Sizes:**
+- **1000** - Small subset for quick validation
+- **32000** - Large subset, multiple of 64 (64 × 500)
+- **32017** - Large non-64-multiple subset (64 × 500 + 17), tests edge cases
+
+**Threading Configurations:**
+- **1 thread** - Single-threaded execution (tests sequential code path)
+- **4 threads** - Multi-threaded (tests parallel code path)
+- **8 threads** - Higher parallelization (tests scalability)
+
+**Phenotypes:**
+- **y** - Quantitative phenotype (for linear models)
+- **ybool** - Binary phenotype (for logistic/Firth models)
+
+**Covariates:**
+- **COV_1** - Single covariate adjustment
+- **None** - No covariate adjustment (blank field)
+
+### Config File
+
+Edit `PLINK2_GLM_TEST_CONFIG.sh` to customize test behavior:
+
+**Path Configuration:**
+```bash
+datapath="test_data/"              # Test data directory
+outdir="./results"                 # Results output directory
+sbpath=""                          # Optional subdirectory path
+compare_script="./2.0/build_dynamic/CI-SCRIPTS/COMPARE_GLM_PLINK2_R.py"
+```
+
+**Batch Selection:**
+```bash
+BATCH_NUM=${GLM_BATCH_NUM:-1}      # Batch number (1-12), defaults to 1
+                                   # Override with GLM_BATCH_NUM env var (used by CI)
+```
+
+**Validation Threshold:**
+```bash
+correlation_threshold=0.8          # Minimum correlation for pass (0.0-1.0)
+                                   # Tests fail if any correlation < threshold
+```
+
+**Advanced Configuration:**
+- Modify `BATCH_FILE` path to use custom batch files
+- Adjust correlation threshold for stricter/looser validation
+- Change data paths for different test data locations
+
+## Scripts Reference
+
+| Script | Purpose | Key Features |
+|--------|---------|--------------|
+| `GLM_TESTS.sh` | CI entry point | Sets up Python venv, installs dependencies (pandas, numpy), creates results directory, executes test runner |
+| `LOCAL_PLINK2_GLM_TESTING.sh` | Core test runner | Loads config, runs PLINK2 GLM for each test case, compares with R reference, validates correlations, fail-fast behavior |
+| `PLINK2_GLM_TEST_CONFIG.sh` | Configuration | Defines paths, batch selection, correlation threshold, loads batch parameters from files |
+| `COMPARE_GLM_PLINK2_R.py` | Validation script | Compares PLINK2 vs R outputs, calculates correlations (beta, SE, p-values), outputs pass/fail status |
+| `glm_test_batches.py` | Batch generator | Generates batch files from master list, ensures even distribution across batches |
+| `checkglm.py` | GLM checker utility | Validates GLM output file format and contents |
+| `CLEANUP.sh` | Cleanup utility | Removes test_data, results directories, cleans build artifacts with `make clean` |
+| `DYNAMICBUILD_LINUXMAC_ROOT.sh` | Build script | Compiles PLINK2 from source using system libraries (LAPACK, OpenBLAS) |
+
+**Execution Flow:**
+```
+GLM_TESTS.sh → LOCAL_PLINK2_GLM_TESTING.sh → PLINK2_GLM_TEST_CONFIG.sh (config)
+                                           → PLINK2 (run GLM)
+                                           → COMPARE_GLM_PLINK2_R.py (validate)
+```
+
+## Directory Structure
+
+```
+CI-SCRIPTS/
+├── README.md                                  # This documentation
+│
+├── Entry Point Scripts
+│   ├── GLM_TESTS.sh                          # Main CI entry (sets up env)
+│   └── LOCAL_PLINK2_GLM_TESTING.sh           # Core test runner (runs tests)
+│
+├── Configuration
+│   └── PLINK2_GLM_TEST_CONFIG.sh             # Paths, batch, threshold config
+│
+├── Validation & Analysis
+│   ├── COMPARE_GLM_PLINK2_R.py               # PLINK2 vs R comparison
+│   ├── checkglm.py                           # GLM output checker
+│   └── glm_test_batches.py                   # Batch file generator
+│
+├── Utilities
+│   ├── CLEANUP.sh                            # Cleanup test data/results
+│   └── DYNAMICBUILD_LINUXMAC_ROOT.sh         # Build PLINK2
+│
+├── CI_reference_files/                       # Batch configurations
+│   ├── BATCH_01_PARAMS.txt                   # Batch 1 (9 tests)
+│   ├── BATCH_02_PARAMS.txt                   # Batch 2 (9 tests)
+│   ├── ...                                   # Batches 3-11
+│   ├── BATCH_12_PARAMS.txt                   # Batch 12 (9 tests)
+│   └── ALL_BATCHES_MASTER_LIST.txt           # All 108 tests
+│
+├── results/                                  # Test outputs (gitignored)
+│   └── *.glm.{linear,logistic,logistic.hybrid}
+│
+└── archive/                                  # Deprecated scripts
+    ├── GLM_TESTS_old.sh
+    ├── GLM_TESTS_old2.sh
+    ├── local_plink2_glm_testruns_old.sh
+    ├── glm_tests_2_R.sh
+    ├── test_glm.sh
+    ├── hello.sh
+    ├── testsv2.sh
+    └── local_linux_testing_env.sh
+```
+
 ## Troubleshooting
 
-**Missing test data in CI:**
-- Ensure [cache_test_data.yml](/.github/workflows/cache_test_data.yml) workflow has been run at least once
-- Check that cache key matches (`test-data-v1`)
-- Manually trigger cache_test_data.yml workflow if needed
-- Verify Google Drive file is accessible
+### Missing Test Data
 
-**Missing files error (local):**
-- Ensure `test_data/` directory exists with required input files
-- Check that R reference CSV files are present
-- Contact maintainer for test data access
+**CI Environment:**
+- **Symptom:** Workflow fails with "Missing: test_data/..." errors
+- **Solution:**
+  1. Run [cache_test_data.yml](/.github/workflows/cache_test_data.yml) workflow manually via workflow_dispatch
+  2. Verify cache key matches (`test-data-v1`) in both workflows
+  3. Check Google Drive file is accessible with file ID `1lW5s8kwMeOwHPrbRoREtO5pwgKKK_8FR`
 
-**Correlation failures:**
-- Review PLINK2 vs R comparison output in results directory
-- Check for numerical precision issues
-- Verify input data integrity
-- Ensure correct PLINK2 build and R reference files match
+**Local Environment:**
+- **Symptom:** Cannot find test data files when running tests locally
+- **Solution:**
+  1. Contact repository maintainer for test data access
+  2. Download from Google Drive using the file ID
+  3. Extract to `test_data/` directory in repository root
+  4. Verify all expected files are present (genotypes, phenotypes, reference outputs)
 
-**Python errors:**
-- Ensure pandas and numpy are installed (`pip install pandas numpy`)
-- Check Python version compatibility (3.x required)
-- Verify virtual environment is activated if using one
+### Correlation Failures
+
+**Symptoms:**
+- Test fails with "❌ TEST FAILED - Correlation below threshold" message
+- Output shows correlation values < 0.8
+
+**Diagnosis:**
+1. Check `results/` directory for detailed PLINK2 vs R comparison output
+2. Review which metric failed (beta, SE, or p-value)
+3. Examine PLINK2 .glm output file for unexpected values
+
+**Common Causes:**
+- **PLINK2 build issue:** Rebuild PLINK2 and rerun tests
+- **Numerical precision:** Check for very small p-values or large betas
+- **Data mismatch:** Verify R reference files match current test data version
+- **Threading differences:** Compare single-threaded vs multi-threaded results
+
+**Solutions:**
+- Verify PLINK2 binary is built correctly from latest source
+- Check that R reference files are from same PLINK2SYN run as test data
+- Review test data integrity (md5sum check)
+- Adjust correlation threshold if small numerical differences expected
+
+### Python/Dependency Errors
+
+**Missing Dependencies:**
+```bash
+# Install required Python packages
+pip install pandas numpy
+
+# Or with virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install pandas numpy
+```
+
+**Import Errors:**
+- Verify Python 3.x is being used (`python3 --version`)
+- Check virtual environment is activated if using one
+- Ensure pip installed packages for correct Python version
+
+**Script Execution Errors:**
+- Make sure scripts have execute permissions: `chmod +x *.sh`
+- Verify correct working directory (repository root)
+- Check that all paths in config file are correct
+
+### Workflow Not Triggering
+
+**Automatic Trigger (Weekly):**
+- **Symptom:** Workflow doesn't run on Sunday midnight
+- **Check:**
+  1. Verify new commits exist on master branch since last successful run
+  2. Review workflow run history in GitHub Actions
+  3. Check if previous run is still in progress
+- **Solution:** Workflow skips if no new commits (expected behavior)
+
+**Manual Trigger:**
+- Navigate to Actions → "PLINK2 AUTO RUN TESTS - LINUX & MAC - CHECK COMMIT HX FIRST"
+- Click "Run workflow" → Select branch → "Run workflow"
+
+**Batch Counter Issues:**
+- **Symptom:** Same batch runs repeatedly
+- **Solution:**
+  1. Check batch counter cache in workflow runs
+  2. Verify `.batch_counter` file is being saved/restored
+  3. Manually increment by editing cache or waiting for next run
+
+### Build Failures
+
+**LAPACK/OpenBLAS Issues (Linux):**
+```bash
+# Install required libraries
+sudo apt-get update
+sudo apt-get install -y libopenblas-dev liblapack-dev liblapacke-dev
+```
+
+**macOS Build Issues:**
+- Ensure Xcode command line tools installed: `xcode-select --install`
+- Check for compatible system libraries
+- Review build output in DYNAMICBUILD_LINUXMAC_ROOT.sh
+
+**Compilation Errors:**
+- Pull latest source code changes
+- Clean build artifacts: `make -C 2.0/build_dynamic/ clean`
+- Rebuild from scratch
 
 ## Archive
 
-The `archive/` directory contains deprecated scripts kept for reference:
-- Old test implementations
-- Development/debug scripts
-- Superseded utilities
+The `archive/` directory contains deprecated scripts kept for historical reference:
 
-These are not actively maintained and should not be used for testing.
+**Archived Scripts:**
+- `GLM_TESTS_old.sh`, `GLM_TESTS_old2.sh` - Previous test framework versions
+- `local_plink2_glm_testruns_old.sh` - Old test runner implementation
+- `glm_tests_2_R.sh` - R-based test script (superseded)
+- `test_glm.sh` - Early test script prototype
+- `hello.sh` - Simple debug script
+- `testsv2.sh` - Test parameter template
+- `local_linux_testing_env.sh` - Linux dependency setup script
+
+**Note:** These scripts are **not actively maintained** and should **not be used** for current testing. Use the current scripts listed in [Scripts Reference](#scripts-reference) instead.
+
+**Why Archived:**
+- Superseded by current testing framework
+- Retained for historical context and reference
+- Useful for understanding test evolution
+- May contain ideas for future improvements
