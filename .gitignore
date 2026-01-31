@@ -9,5 +9,6 @@ pgen_spec/pgen_spec.toc
 ## Ignore macOS system files and local dev: /test_data
 .DS_Store
 /test_data/
-/results/ 
+/results/
 /venv/
+2.0/build_dynamic/CI-SCRIPTS/results/
