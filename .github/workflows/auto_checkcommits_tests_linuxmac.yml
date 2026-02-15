@@ -7,49 +7,50 @@ on:
 
 jobs:
   # Step 1: Single commit check job
-  check_commits:
-    runs-on: ubuntu-latest
-    outputs:
-      new_commits: ${{ steps.commit_check.outputs.new_commits }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  # COMMENTED OUT - Workflow now runs every week regardless of new commits
+  # check_commits:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     new_commits: ${{ steps.commit_check.outputs.new_commits }}
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Check commits
-        id: commit_check
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Get latest commit
-          LATEST_MASTER=$(git rev-parse origin/master)
-          echo "LATEST MASTER commit: $LATEST_MASTER"
+  #     - name: Check commits
+  #       id: commit_check
+  #       env:
+  #         GH_TOKEN: ${{ github.token }}
+  #       run: |
+  #         # Get latest commit
+  #         LATEST_MASTER=$(git rev-parse origin/master)
+  #         echo "LATEST MASTER commit: $LATEST_MASTER"
 
-          # Get last successful workflow commit
-          LAST_WORKFLOW=$(gh run list \
-            --workflow="PLINK2 AUTO RUN TESTS - LINUX & MAC - CHECK COMMIT HX FIRST" \
-            --branch master \
-            --status success \
-            --limit 1 \
-            --json headSha \
-            --jq '.[0].headSha')
-          
-          echo "LAST WORKFLOW successful workflow commit: $LAST_WORKFLOW"
+  #         # Get last successful workflow commit
+  #         LAST_WORKFLOW=$(gh run list \
+  #           --workflow="PLINK2 AUTO RUN TESTS - LINUX & MAC - CHECK COMMIT HX FIRST" \
+  #           --branch master \
+  #           --status success \
+  #           --limit 1 \
+  #           --json headSha \
+  #           --jq '.[0].headSha')
+  #
+  #         echo "LAST WORKFLOW successful workflow commit: $LAST_WORKFLOW"
 
-          # Decide if there are new commits
-          if [ "$LATEST_MASTER" != "$LAST_WORKFLOW" ]; then
-            echo "New commits detected."
-            echo "new_commits=true" >> $GITHUB_OUTPUT
-          else
-            echo "No new commits."
-            echo "new_commits=false" >> $GITHUB_OUTPUT
-          fi
+  #         # Decide if there are new commits
+  #         if [ "$LATEST_MASTER" != "$LAST_WORKFLOW" ]; then
+  #           echo "New commits detected."
+  #           echo "new_commits=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "No new commits."
+  #           echo "new_commits=false" >> $GITHUB_OUTPUT
+  #         fi
 
-  # Step 2: Matrix job 
+  # Step 2: Matrix job
   run_dynamicbuild_plink2tests:
-    needs: check_commits
-    if: needs.check_commits.outputs.new_commits == 'true'
+    # needs: check_commits  # COMMENTED OUT - no longer conditional on commit check
+    # if: needs.check_commits.outputs.new_commits == 'true'  # COMMENTED OUT - runs unconditionally
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
