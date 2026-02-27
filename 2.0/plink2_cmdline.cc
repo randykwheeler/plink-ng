@@ -679,7 +679,7 @@ BoolErr bigstack_calloc_uc(uintptr_t ct, unsigned char** uc_arr_ptr) {
   if (unlikely(!(*uc_arr_ptr))) {
     return 1;
   }
-  memset(*uc_arr_ptr, 0, ct);
+  std::fill_n(*uc_arr_ptr, ct, 0);
   return 0;
 }
 
@@ -688,7 +688,7 @@ BoolErr bigstack_calloc_d(uintptr_t ct, double** d_arr_ptr) {
   if (unlikely(!(*d_arr_ptr))) {
     return 1;
   }
-  ZeroDArr(ct, *d_arr_ptr);
+  std::fill_n(*d_arr_ptr, ct, 0.0);
   return 0;
 }
 
@@ -697,7 +697,7 @@ BoolErr bigstack_calloc_f(uintptr_t ct, float** f_arr_ptr) {
   if (unlikely(!(*f_arr_ptr))) {
     return 1;
   }
-  ZeroFArr(ct, *f_arr_ptr);
+  std::fill_n(*f_arr_ptr, ct, 0.0f);
   return 0;
 }
 
